@@ -1,7 +1,8 @@
-import { vec2 } from 'gl-matrix';
 import { IScreen } from '../IScreen';
 import { Screen } from '../Screen';
 import { Engine, World, Bodies, Body, Events, Vector } from 'matter-js'
+import { LevelCompleteScreen } from './LevelCompleteScreen';
+import { LevelConfig, levels } from '../levels';
 
 
 type Tile = {
@@ -30,6 +31,8 @@ const playerFriction = 0
 const playerFrictionAir = 0.02
 const playerRestitution = 0
 const playerXResistance = 0.01
+
+
 
 
 export class PlatformScreen extends Screen {
@@ -64,20 +67,20 @@ export class PlatformScreen extends Screen {
 		Space: 'jump',
 	}
 
+	levelNo: number
 	lastDirection: string = 'right'
+	goalReached: boolean = false
 
 
-	constructor(screens: IScreen[]) {
+	constructor(screens: IScreen[], levelNo: number) {
 		super(screens)
 
-		window.addEventListener('keydown', (event: KeyboardEvent) => {
-			const action = this.actionByKey[event.code]
-			if (!action) { return }
-			if (!this.actionStates[action]) {
-				this.actionStates[action] = true
-				if (action) { this.handleAction(action) }
-			}
-		})
+		this.levelNo = levelNo
+		
+		console.log(this.levelNo)
+		const level: LevelConfig = levels[levelNo]
+		if (!level) { throw new Error(`Invalid levelNo "${levelNo}"`) }
+
 		window.addEventListener('keyup', (event: KeyboardEvent) => {
 			const action = this.actionByKey[event.code]
 			if (!action) { return }
@@ -97,7 +100,17 @@ export class PlatformScreen extends Screen {
 				let body: Body | null = null
 				if (pair.bodyA === this.player) { body = pair.bodyB }
 				if (pair.bodyB === this.player) {	body = pair.bodyA }
-				if (body) {
+
+				if (body === this.goal) {
+					if (!this.goalReached) {
+						const time = Math.floor(this.totalMs / 1000)
+						this.goalReached = true
+						setTimeout(() => {
+							this.screens.push(new LevelCompleteScreen(this.screens, this.levelNo, time))
+						}, 300)
+					}
+				}
+				else {
 					if (pair.activeContacts.every((x: any) => x.vertex.x < this.player.position.x - 40)) {
 						left = true
 					}
@@ -117,11 +130,20 @@ export class PlatformScreen extends Screen {
 
 
 		this.loadImage('terrain.png').then(image => this.imagesByTitle['terrain'] = image)
-		this.loadImage('md_idle.png').then(image => this.imagesByTitle['md_idle'] = image)
-		this.loadImage('vg_idle.png').then(image => this.imagesByTitle['vg_idle'] = image)
+		this.loadImage(require('../public/player_frog.png').default).then(image => this.imagesByTitle['player'] = image)
+		this.loadImage(require('../public/flag.png').default).then(image => this.imagesByTitle['flag'] = image)
 		this.loadImage('bg.png').then(image => this.imagesByTitle['bg'] = image)
 
-		this.loadLevel('level.png')
+		this.loadLevel(level.file)
+	}
+
+	handleKeyDown(event: KeyboardEvent) {
+		const action = this.actionByKey[event.code]
+		if (!action) { return }
+		if (!this.actionStates[action]) {
+			this.actionStates[action] = true
+			if (action) { this.handleAction(action) }
+		}
 	}
 
 	async loadImage(src: string): Promise<HTMLImageElement> {
@@ -264,6 +286,8 @@ export class PlatformScreen extends Screen {
 
 	update(dt: number) {
 
+		const screenActive = this.screens[this.screens.length - 1] === this
+		if (!screenActive) { return }
 		if (!this.player) { return }
 
 		if (this.isAction('left')) {
@@ -300,8 +324,8 @@ export class PlatformScreen extends Screen {
 
 			this.player.force.x = -this.player.velocity.x * playerXResistance
 			
-			this.totalMs += 10
 			this.elapsed -= 10
+			this.totalMs += 10
 		}
 	}
 
@@ -383,27 +407,27 @@ export class PlatformScreen extends Screen {
 		}
 
 
-		if (this.imagesByTitle['vg_idle']) {
+		if (this.imagesByTitle['flag']) {
 			context.save()
 			context.translate(
 				(this.offset.x + this.goal.position.x / 100) * cScale,
 				(this.offset.y + this.goal.position.y / 100) * cScale
 			)
 			context.drawImage(
-				this.imagesByTitle['vg_idle'],
-				(Math.round(this.totalMs / 50) % 11) * 32,
+				this.imagesByTitle['flag'],
+				(Math.round(this.totalMs / 50) % 10) * 64,
 				0,
-				32,
-				32,
-				-0.5 * cScale,
-				-0.5 * cScale,
-				1 * cScale,
-				1 * cScale
+				64,
+				64,
+				-1.5 * cScale,
+				-1.5 * cScale,
+				2 * cScale,
+				2 * cScale
 			)
 			context.restore()
 		}
 
-		if (this.imagesByTitle['md_idle']) {
+		if (this.imagesByTitle['player']) {
 			context.save()
 			context.translate(
 				(this.offset.x + this.player.position.x / 100) * cScale,
@@ -421,9 +445,16 @@ export class PlatformScreen extends Screen {
 			}
 
 			if (this.playerState.jumping) {
-				sx = 0
-				sy = 32
+				if (this.playerState.canDoubleJump) {
+					sx = 0
+					sy = 32
+				}
+				else {
+					sx = (Math.round(this.totalMs / 50) % 6) * 32 + 32
+					sy = 96
+				}
 			}
+
 			if (this.playerState.falling) {
 				sx = 32
 				sy = 32
@@ -434,7 +465,7 @@ export class PlatformScreen extends Screen {
 			}
 
 			context.drawImage(
-				this.imagesByTitle['md_idle'],
+				this.imagesByTitle['player'],
 				sx,
 				sy,
 				32,
@@ -447,6 +478,22 @@ export class PlatformScreen extends Screen {
 
 			context.restore()
 		}
+
+		const time = ('00' + Math.floor((this.totalMs / 1000) / 60)).substr(-2)
+			+ ':' + ('00' + Math.floor((this.totalMs / 1000) % 60)).substr(-2)
+		const { width: tw } = context.measureText(time)
+		const th = cScale * 0.4
+		
+		const ox = 0.05
+		const oy = 0.1
+		
+		context.fillStyle = '#999'
+		context.strokeStyle = '#fff'
+		context.fillRect((ox - 0.01) * canvas.height, (oy - 0.04) * canvas.height, canvas.height * 0.1, canvas.height * 0.05)
+
+		context.fillStyle = '#eee'
+		context.font = `${cScale * 0.4}px Arial`;
+		context.fillText(time, ox * canvas.height, oy * canvas.height)
 	}
 
 }

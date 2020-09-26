@@ -1,7 +1,7 @@
 
 import { addJoystickCLickListener } from './helpers'
 import { IScreen } from './IScreen'
-import { PlatformScreen } from './screens/PlatformScreen'
+import { LevelSelectScreen } from './screens/LevelSelectScreen'
 
 console.info('Platform game by Ugnius Kavaliauskas 2020 https://github.com/ugnius/platform-game')
 let canvas: HTMLCanvasElement
@@ -30,7 +30,7 @@ function init() {
 	resize()
 	window.addEventListener('resize', resize)
 
-	screens.push(new PlatformScreen(screens))
+	screens.push(new LevelSelectScreen(screens))
 
 	const topScreen = () => screens[screens.length - 1]
 

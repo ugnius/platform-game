@@ -32,7 +32,7 @@ const config = {
 	module: {
 		rules: [
 			{
-				test: /\.jsx?$/,
+				test: /\.js?$/,
 				exclude: /(node_modules)/,
 				loader: 'babel-loader',
 				options: {
@@ -44,7 +44,7 @@ const config = {
 				},
 			},
 			{
-				test: /\.tsx?$/,
+				test: /\.ts$/,
 				loader: 'awesome-typescript-loader',
 				exclude: /node_modules/,
 				query: {
@@ -52,10 +52,13 @@ const config = {
 				},
 			},
 			{
-				test: /\.wasm$/,
-				loaders: ['base64-loader'],
-				type: 'javascript/auto',
-			}
+        test: /\.png$/i,
+        use: [
+          {
+            loader: 'url-loader',
+          },
+        ],
+      }
 		],
 	},
 	plugins: [
